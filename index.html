@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF Workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#E6EEED;--stage:#D2E0DE;--panel:#fff;--ink:#12302F;--mute:#4B6564;--line:#C5D6D4;--pri:#0F766E;--pri-ink:#fff;--acc:#C2410C;--acc-ink:#fff;--ring:#0D9488;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#0E1F1F;--stage:#091616;--panel:#152A2A;--ink:#E3F1EF;--mute:#9DB8B5;--line:#2A4545;--pri:#2DD4BF;--pri-ink:#05201D;--acc:#FB923C;--acc-ink:#1c0a02;--ring:#5EEAD4;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:14px/1.45 "Plus Jakarta Sans",system-ui,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);display:grid;grid-template-rows:auto auto 1fr auto}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:transparent;border-radius:6px;padding:7px 11px;min-height:34px;font-weight:500}
+button:hover:not(:disabled){background:color-mix(in srgb,var(--pri) 14%,transparent)}
+button:disabled{opacity:.4;cursor:default}
+button[aria-pressed=true]{background:var(--pri);color:var(--pri-ink)}
+button.go{background:var(--acc);color:var(--acc-ink);font-weight:600}
+button.go:hover:not(:disabled){background:var(--acc);filter:brightness(1.1)}
+:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.row{display:flex;align-items:center;gap:4px;padding:6px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.brand{font-weight:700;font-size:15px;margin-right:6px}
+#fname{color:var(--mute);max-width:32ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp{flex:1}
+.sep{width:1px;align-self:stretch;background:var(--line);margin:3px 6px}
+.row input[type=number]{width:56px}
+.row input[type=search],.row input[type=number]{padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);min-height:34px}
+.row input[type=color]{width:34px;height:34px;padding:2px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.row label{color:var(--mute);display:flex;align-items:center;gap:6px}
+#fc{color:var(--mute);min-width:9ch}
+main{display:grid;grid-template-columns:152px 1fr;min-height:0}
+#rail{overflow:auto;background:var(--panel);border-right:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:10px}
+.th{border:2px solid transparent;border-radius:6px;padding:4px;cursor:pointer}
+.th.on{border-color:var(--pri)}
+.th.drop{border-color:var(--acc);border-style:dashed}
+.th[draggable=true]{cursor:grab}
+.ff{position:absolute;margin:0;padding:0 3px;border:1px solid var(--pri);background:#eefaf8;color:#000;font-family:Helvetica,Arial,sans-serif;line-height:1}
+.ff[type=checkbox]{accent-color:var(--pri);padding:0}
+.th img{width:100%;display:block;border:1px solid var(--line);background:#fff}
+.th label{display:flex;gap:6px;align-items:center;justify-content:center;padding-top:4px;color:var(--mute);cursor:pointer}
+#stage{overflow:auto;background:var(--stage);padding:24px;position:relative}
+#sheet{position:relative;width:fit-content;margin:0 auto;border:1px solid var(--line);background:#fff;line-height:0}
+#pg{display:block;user-select:none;-webkit-user-drag:none}
+#hl,#ov{position:absolute;inset:0}
+.hit{position:absolute;background:rgba(250,204,21,.45);outline:1px solid #A16207}
+.band{position:absolute;border:2px dashed var(--pri);background:color-mix(in srgb,var(--pri) 16%,transparent)}
+.band.redact{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 20%,transparent)}
+.ed{position:absolute;min-width:140px;font-family:Helvetica,Arial,sans-serif;line-height:1.2;padding:0 3px;border:2px solid var(--pri);background:#fffbe6;color:#000;resize:both;overflow:hidden;border-radius:2px}
+#empty{display:grid;place-items:center;grid-column:1/-1;padding:24px}
+#drop{max-width:520px;width:100%;padding:44px 32px;border:2px dashed var(--line);border-radius:12px;text-align:center;background:var(--panel)}
+#drop.over{border-color:var(--pri)}
+#drop h1{font-size:24px;line-height:1.2;margin:0 0 8px}
+#drop p{margin:0 0 22px;color:var(--mute)}
+.empty main>:not(#empty){display:none}
+body:not(.empty) #empty{display:none}
+.empty .bar button,.empty .bar input,.empty #foot button{opacity:.4;pointer-events:none}
+#foot{justify-content:space-between;border-top:1px solid var(--line);border-bottom:0}
+#hint{color:var(--mute);flex:1;min-width:200px}
+#toast{position:fixed;left:50%;bottom:56px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;max-width:90vw}
+@media(max-width:720px){main{grid-template-columns:96px 1fr}#fname{display:none}}
+@media(prefers-reduced-motion:no-preference){button{transition:background .15s}}
+</style>
+</head>
+<body class="empty">
+<header class="row bar">
+  <span class="brand">PDF editor</span><span id="fname"></span><span class="sp"></span>
+  <button id="bOpen">Open</button>
+  <button id="bMerge" title="Append another PDF to the end">Merge</button>
+  <button id="bProt" title="Download with a password">Save protected</button>
+  <button id="bExp" title="Download only the checked pages (or the current page)">Export pages</button>
+  <button id="bDl" class="go">Download</button>
+</header>
+<div class="row bar" role="toolbar" aria-label="Editing tools">
+  <button id="undo" title="Undo (Ctrl+Z)">Undo</button><span class="sep"></span>
+  <button id="rl" title="Rotate left">Rotate left</button>
+  <button id="rr" title="Rotate right">Rotate right</button>
+  <button id="up" title="Move page up">Move up</button>
+  <button id="dn" title="Move page down">Move down</button>
+  <button id="dup" title="Duplicate page">Duplicate</button>
+  <button id="blank" title="Insert a blank page after this one">Add blank</button>
+  <button id="ocr" title="Make scanned pages searchable (converts them to images)">OCR</button>
+  <button id="del" title="Delete page">Delete</button><span class="sep"></span>
+  <button data-tool="select">Select</button>
+  <button data-tool="edit">Edit text</button>
+  <button data-tool="text">Add text</button>
+  <button data-tool="highlight">Highlight</button>
+  <button data-tool="whiteout">Whiteout</button>
+  <button data-tool="redact">Redact</button>
+  <button data-tool="image">Image</button>
+  <button data-tool="form">Fill form</button>
+  <button id="bForm" class="go" hidden>Apply fields</button><span class="sep"></span>
+  <label>Size <input id="sz" type="number" value="14" min="6" max="96"></label>
+  <input id="col" type="color" value="#000000" aria-label="Text colour"><span class="sp"></span>
+  <input id="q" type="search" placeholder="Find in document" aria-label="Find in document"><span id="fc" aria-live="polite"></span>
+</div>
+<main>
+  <aside id="rail" aria-label="Pages"></aside>
+  <section id="stage"><div id="sheet"><img id="pg" alt="Current page"><div id="hl"></div><div id="ov"></div></div></section>
+  <div id="empty"><div id="drop">
+    <h1>Open a PDF to start editing</h1>
+    <p>Drop a file here or choose one. Nothing leaves this computer.</p>
+    <button id="bOpen2" class="go">Choose PDF</button>
+  </div></div>
+</main>
+<footer class="row" id="foot">
+  <span id="hint"></span>
+  <span><button id="pv" aria-label="Previous page">Prev</button> <b id="pn">0 / 0</b> <button id="nx" aria-label="Next page">Next</button></span>
+  <span><button id="zo" aria-label="Zoom out">-</button> <span id="zl">130%</span> <button id="zi" aria-label="Zoom in">+</button> <button id="cp">Copy page text</button></span>
+</footer>
+<div id="toast" role="status" hidden></div>
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+let st={open:false},cur=0,sel=new Set(),tool='select',zoom=1.3,hits=[],hi=0,lastQ='',editing=false;
+const HINTS={select:'Check pages on the left to act on several at once. Pick a tool to change the page.',
+ edit:'Click a line of text to rewrite it.',text:'Click where the new text should start.',
+ highlight:'Drag over an area to highlight it.',whiteout:'Drag to cover an area. The text underneath stays in the file; use Redact to remove it.',
+ redact:'Drag to permanently remove everything underneath.',form:'Fill in the fields on the page, then choose Apply fields to write them into the PDF.',
+ image:'Drag a box, then choose the image or signature to place in it.'};
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,4000)}
+async function call(u,o){const r=await fetch(u,o);if(!r.ok){let m='Something went wrong.';try{m=(await r.json()).error||m}catch{}toast(m);throw new Error(m)}return r}
+async function apply(r){st=await r.json();render()}
+const op=b=>call('/api/op',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(apply);
+const post=(u,fd)=>call(u,{method:'POST',body:fd}).then(apply);
+function pickFile(accept,fn){const i=document.createElement('input');i.type='file';i.accept=accept;i.onchange=()=>i.files[0]&&fn(i.files[0]);i.click()}
+const sendFile=(u,f,extra={})=>{const fd=new FormData();fd.append('file',f);for(const k in extra)fd.append(k,extra[k]);return post(u,fd)};
+const targets=()=>sel.size?[...sel].sort((a,b)=>a-b):[cur];
+
+function render(){
+  document.body.classList.toggle('empty',!st.open);
+  if(!st.open)return;
+  const n=st.pages.length;cur=Math.max(0,Math.min(cur,n-1));sel=new Set([...sel].filter(i=>i<n));
+  $('#fname').textContent=st.name;$('#undo').disabled=!st.undo;
+  $('#rail').innerHTML=st.pages.map((p,i)=>`<div class="th" draggable="true" data-i="${i}"><img draggable="false" src="/api/page/${i}.png?z=.25&v=${st.v}" alt="Page ${i+1}" loading="lazy"><label><input type="checkbox" data-c="${i}" ${sel.has(i)?'checked':''}> ${i+1}</label></div>`).join('');
+  show();
+}
+function show(){
+  const [w,h]=st.pages[cur],im=$('#pg'),rz=Math.min(4,Math.max(1.5,zoom*(devicePixelRatio||1)));
+  im.style.width=w*zoom+'px';im.style.height=h*zoom+'px';im.src=`/api/page/${cur}.png?z=${rz}&v=${st.v}`;
+  $('#pn').textContent=`${cur+1} / ${st.pages.length}`;$('#zl').textContent=Math.round(zoom*100)+'%';
+  $$('.th').forEach((e,i)=>e.classList.toggle('on',i==cur));
+  $('#ov').innerHTML='';editing=false;setHint();drawHits();if(tool=='form')loadForm();
+}
+function setHint(t){$('#hint').textContent=t||HINTS[tool]}
+function drawHits(){
+  const [w,h]=st.pages[cur],g=(hits.find(x=>x.page==cur)||{rects:[]}).rects;
+  $('#hl').innerHTML=g.map(r=>`<div class="hit" style="left:${r[0]/w*100}%;top:${r[1]/h*100}%;width:${(r[2]-r[0])/w*100}%;height:${(r[3]-r[1])/h*100}%"></div>`).join('');
+}
+function goto(i){cur=i;show();$('#stage').scrollTop=0}
+function pt(e){const r=$('#pg').getBoundingClientRect(),[w,h]=st.pages[cur];return[(e.clientX-r.left)/r.width*w,(e.clientY-r.top)/r.height*h]}
+
+function setTool(t){tool=t;$$('[data-tool]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tool==t));$('#ov').style.cursor=t=='select'?'default':t=='edit'?'text':'crosshair';setHint();$('#bForm').hidden=t!='form';$('#ov').innerHTML='';if(t=='form'&&st.open)loadForm()}
+
+function openEditor(o){
+  if(editing)return;editing=true;
+  const [w,h]=st.pages[cur],ta=document.createElement('textarea');
+  ta.className='ed';ta.value=o.text||'';ta.rows=o.mode=='edit'?1:3;
+  Object.assign(ta.style,{left:o.x/w*100+'%',top:o.y/h*100+'%',fontSize:o.size*zoom+'px',color:o.color});
+  if(o.mode=='edit')ta.style.width=Math.max(160,(o.bbox[2]-o.bbox[0])*zoom+30)+'px';
+  let done=false;
+  const finish=async ok=>{if(done)return;done=true;const t=ta.value;ta.remove();editing=false;setHint();
+    if(!ok)return;
+    if(o.mode=='text'){if(t.trim())await op({op:'text',page:cur,x:o.x,y:o.y,text:t,size:o.size,color:o.color})}
+    else if(t!==o.text)await op({op:'edit',page:cur,bbox:o.bbox,origin:o.origin,text:t,size:o.size,color:o.color,font:o.font})};
+  ta.onkeydown=e=>{if(e.key=='Escape')finish(false);else if(e.key=='Enter'&&(o.mode=='edit'||e.ctrlKey||e.metaKey)){e.preventDefault();finish(true)}};
+  ta.onblur=()=>finish(true);
+  $('#ov').appendChild(ta);ta.focus();ta.select();
+  setHint(o.mode=='edit'?'Press Enter to apply, Esc to cancel.':'Press Ctrl+Enter to apply, Esc to cancel.');
+}
+$('#ov').addEventListener('pointerdown',async e=>{
+  if(tool=='select'||tool=='form'||e.target.closest('.ed')||e.button)return;
+  const a=pt(e);
+  if(tool=='text')return openEditor({mode:'text',x:a[0],y:a[1],size:+$('#sz').value||14,color:$('#col').value});
+  if(tool=='edit'){
+    const s=await(await call(`/api/span?page=${cur}&x=${a[0]}&y=${a[1]}`)).json();
+    return s.found?openEditor({...s,mode:'edit',x:s.bbox[0],y:s.bbox[1]}):toast('No editable text there. Use Add text to place new text.');
+  }
+  const ov=$('#ov'),band=document.createElement('div');band.className='band'+(tool=='redact'?' redact':'');ov.appendChild(band);
+  ov.setPointerCapture(e.pointerId);const [w,h]=st.pages[cur],t=tool;
+  const box=b=>[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[0],b[0]),Math.max(a[1],b[1])];
+  const mv=ev=>{const r=box(pt(ev));Object.assign(band.style,{left:r[0]/w*100+'%',top:r[1]/h*100+'%',width:(r[2]-r[0])/w*100+'%',height:(r[3]-r[1])/h*100+'%'})};
+  const up=ev=>{ov.removeEventListener('pointermove',mv);ov.removeEventListener('pointerup',up);band.remove();
+    const r=box(pt(ev));if(r[2]-r[0]<4||r[3]-r[1]<4)return;
+    if(t=='image')pickFile('image/*',f=>sendFile('/api/image',f,{page:cur,rect:JSON.stringify(r)}));
+    else op({op:t,page:cur,rect:r})};
+  ov.addEventListener('pointermove',mv);ov.addEventListener('pointerup',up);
+});
+
+// forms
+const fv=new Map(),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function loadForm(){
+  const fs=await(await call('/api/fields?page='+cur)).json();if(tool!='form')return;
+  const [w,h]=st.pages[cur],ov=$('#ov');ov.innerHTML='';
+  if(!fs.length)return toast('This page has no fillable fields.');
+  for(const f of fs){
+    const v=fv.has(f.xref)?fv.get(f.xref).value:f.value;let el;
+    if(f.type=='CheckBox'||f.type=='RadioButton'){el=document.createElement('input');el.type='checkbox';el.checked=!!v}
+    else if(f.type=='ComboBox'||f.type=='ListBox'){el=document.createElement('select');el.innerHTML=f.choices.map(c=>`<option>${esc(c)}</option>`).join('');el.value=v}
+    else{el=document.createElement('input');el.type='text';el.value=v}
+    el.className='ff';el.setAttribute('aria-label',f.name);const r=f.rect;
+    Object.assign(el.style,{left:r[0]/w*100+'%',top:r[1]/h*100+'%',width:(r[2]-r[0])/w*100+'%',height:(r[3]-r[1])/h*100+'%',fontSize:Math.max(9,Math.min(16,(r[3]-r[1])*.6))*zoom+'px'});
+    el.oninput=el.onchange=()=>{fv.set(f.xref,{page:cur,xref:f.xref,value:el.type=='checkbox'?el.checked:el.value});$('#bForm').textContent=`Apply fields (${fv.size})`};
+    ov.appendChild(el);
+  }
+}
+$('#bForm').onclick=async()=>{if(!fv.size)return toast('Fill in at least one field first.');const fields=[...fv.values()];fv.clear();$('#bForm').textContent='Apply fields';await op({op:'fill',fields});toast('Fields saved into the PDF.')};
+$('#ocr').onclick=async()=>{const lang=prompt('OCR language code (eng = English, fra = French, spa = Spanish):','eng');if(!lang)return;toast('Running OCR. Long documents can take a while.');await op({op:'ocr',pages:targets(),lang});toast('Done. The text on those pages is now searchable.')};
+
+// drag to reorder thumbnails
+let dragI=null;const clearDrop=()=>$$('.th').forEach(x=>x.classList.remove('drop'));
+$('#rail').addEventListener('dragstart',e=>{const t=e.target.closest('.th');if(!t)return;dragI=+t.dataset.i;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(dragI))});
+$('#rail').addEventListener('dragover',e=>{if(dragI==null)return;e.preventDefault();clearDrop();e.target.closest('.th')?.classList.add('drop')});
+$('#rail').addEventListener('drop',e=>{e.preventDefault();const t=e.target.closest('.th'),i=dragI;clearDrop();dragI=null;if(!t||i==null)return;const to=+t.dataset.i;if(i==to)return;cur=to;sel.clear();op({op:'move',i,to})});
+$('#rail').addEventListener('dragend',()=>{dragI=null;clearDrop()});
+
+// pages
+$('#rail').onclick=e=>{const c=e.target.closest('[data-c]');if(c){c.checked?sel.add(+c.dataset.c):sel.delete(+c.dataset.c);return}
+  const t=e.target.closest('.th');if(t)goto(+t.dataset.i)};
+$('#rl').onclick=()=>op({op:'rotate',pages:targets(),deg:-90});
+$('#rr').onclick=()=>op({op:'rotate',pages:targets(),deg:90});
+const mvp=d=>{const to=cur+d;if(to<0||to>=st.pages.length)return;const i=cur;cur=to;sel.clear();op({op:'move',i,to})};
+$('#up').onclick=()=>mvp(-1);$('#dn').onclick=()=>mvp(1);
+$('#dup').onclick=()=>op({op:'duplicate',pages:targets()});
+$('#blank').onclick=()=>{const i=cur;cur=i+1;op({op:'blank',pages:[i]})};
+$('#del').onclick=async()=>{const t=targets();sel.clear();await op({op:'delete',pages:t});toast(`Deleted ${t.length} page${t.length>1?'s':''}. Undo with Ctrl+Z.`)};
+$('#undo').onclick=()=>op({op:'undo'});
+$('#pv').onclick=()=>cur>0&&goto(cur-1);$('#nx').onclick=()=>cur<st.pages.length-1&&goto(cur+1);
+const zm=d=>{zoom=Math.max(.5,Math.min(3,zoom+d));show()};$('#zo').onclick=()=>zm(-.15);$('#zi').onclick=()=>zm(.15);
+$$('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+
+// files
+const openPdf=f=>sendFile('/api/open',f).then(()=>{cur=0;sel.clear();fv.clear();hits=[];$('#fc').textContent='';show()});
+$('#bOpen').onclick=$('#bOpen2').onclick=()=>pickFile('application/pdf',openPdf);
+$('#bMerge').onclick=()=>pickFile('application/pdf',f=>sendFile('/api/merge',f).then(()=>toast('Merged at the end of the document.')));
+$('#bDl').onclick=()=>location.href='/api/export';
+$('#bProt').onclick=()=>{const pw=prompt('Choose a password for the downloaded copy:');if(pw)location.href='/api/export?pw='+encodeURIComponent(pw)};
+$('#bExp').onclick=()=>location.href='/api/export?pages='+targets().map(i=>i+1).join(',');
+$('#cp').onclick=async()=>{const t=(await(await call('/api/text?page='+cur)).json()).text;await navigator.clipboard.writeText(t);toast(t.trim()?'Page text copied.':'This page has no selectable text.')};
+const dz=$('#drop');
+['dragenter','dragover'].forEach(n=>addEventListener(n,e=>{e.preventDefault();dz.classList.add('over')}));
+['dragleave','drop'].forEach(n=>addEventListener(n,e=>{e.preventDefault();dz.classList.remove('over')}));
+addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f&&!st.open)f.type=='application/pdf'?openPdf(f):toast('Only PDF files can be opened.')});
+
+// find
+$('#q').addEventListener('keydown',async e=>{
+  if(e.key!='Enter')return;const q=e.target.value;
+  if(!q){hits=[];lastQ='';$('#fc').textContent='';return drawHits()}
+  if(q!=lastQ||!hits.length){hits=await(await call('/api/find?q='+encodeURIComponent(q))).json();lastQ=q;hi=0}else hi=(hi+1)%hits.length;
+  const n=hits.reduce((a,x)=>a+x.rects.length,0);$('#fc').textContent=n?`${n} match${n>1?'es':''}`:'No matches';
+  hits.length?goto(hits[hi].page):drawHits();
+});
+addEventListener('keydown',e=>{
+  if(!st.open||/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName))return;
+  if((e.ctrlKey||e.metaKey)&&e.key=='z'){e.preventDefault();$('#undo').click()}
+  else if(e.key=='ArrowRight')$('#nx').click();else if(e.key=='ArrowLeft')$('#pv').click();
+});
+setTool('select');
+fetch('/api/state').then(r=>r.json()).then(s=>{st=s;render()});
+</script>
+</body>
+</html>
